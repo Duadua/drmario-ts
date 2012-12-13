@@ -402,12 +402,13 @@ var Game = (function () {
             }
         }
         if(this.dead) {
-            this.game_over();
+            return 'gameover';
         }
         if(this.virus == 0) {
-            this.victory();
+            return 'victory';
         }
         this.ticks += 1;
+        return '';
     };
     Game.prototype.next_punish = function () {
         var L = this.punish_list.splice(0, 1)[0];
@@ -717,30 +718,6 @@ var Game = (function () {
     Game.prototype.add_message = function (text) {
         this.messages.push(text);
     };
-    Game.prototype.game_over = function () {
-        var i = this.index;
-        var other = (i + 1) % 2;
-
-        stop();
-        display_text(i, 'You lose');
-        if(games.length > 1) {
-            display_text(other, 'You win');
-            wins[other] += 1;
-        }
-        init();
-    };
-    Game.prototype.victory = function () {
-        var i = this.index;
-        var other = (i + 1) % 2;
-
-        stop();
-        display_text(i, 'You win');
-        if(games.length > 1) {
-            display_text(other, 'You lose');
-        }
-        wins[i] += 1;
-        init();
-    };
     Game.prototype.get_punish = function (colors_list) {
         this.punish_list.push(colors_list);
     };
@@ -815,94 +792,126 @@ var BotGame = (function (_super) {
         bot.game = this;
     }
     BotGame.prototype.tick = function () {
-        _super.prototype.tick.call(this);
+        var result = _super.prototype.tick.call(this);
         this.bot.tick();
+        return result;
     };
     return BotGame;
 })(Game);
-function draw() {
-    ctx.clearRect(0, 0, 500, 600);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 500, 600);
-    games.forEach(function (game, index) {
-        ctx.save();
-        ctx.translate(30 + index * 240, 30);
-        game.tick();
-        game.view.draw();
-        ctx.restore();
-    });
-}
-function start() {
-    interval = setInterval(draw, 1000 / FPS);
-}
-function stop() {
-    clearInterval(interval);
-    interval = undefined;
-}
-function display_text(game, text) {
-    var i;
-    if(game === 'all') {
-        for(i = 0; i < games.length; i++) {
-            games[i].add_message(text);
+var MainGame = (function () {
+    function MainGame() {
+        this.games = [];
+        this.runframe = this.runframe.bind(this);
+    }
+    MainGame.prototype.runframe = function () {
+        var result;
+        for(var index = 0; index < games.length; index++) {
+            var game = games[index];
+            result = game.tick();
+            if(result == 'gameover') {
+                this.victory((index + 1) % 2);
+            } else {
+                if(result == 'victory') {
+                    this.victory(index);
+                }
+            }
         }
-    } else {
-        games[game].add_message(text);
-    }
-}
-function pause() {
-    if(interval) {
-        stop();
-        display_text('all', 'GAME PAUSED');
-        draw();
+        this.draw();
+    };
+    MainGame.prototype.draw = function () {
+        ctx.clearRect(0, 0, 500, 600);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 500, 600);
+        games.forEach(function (game, index) {
+            ctx.save();
+            ctx.translate(30 + index * 240, 30);
+            game.view.draw();
+            ctx.restore();
+        });
+    };
+    MainGame.prototype.victory = function (winner) {
+        var loser = (winner + 1) % 2;
+        this.stop();
+        this.display_text(winner, 'You win');
+        if(this.games.length > 1) {
+            this.display_text(loser, 'You lose');
+        }
+        wins[winner] += 1;
+        this.init();
+    };
+    MainGame.prototype.start = function () {
+        interval = setInterval(this.runframe, 1000 / FPS);
+    };
+    MainGame.prototype.stop = function () {
+        clearInterval(interval);
         interval = undefined;
-    } else {
-        start();
-    }
-}
-function copy_game_state(game_from, game_to) {
-    game_to.state = copy(game_from.state);
-    game_to.initial = copy(game_from.initial);
-    game_to.virus = game_from.virus;
-    1;
-}
-function two_p_init(speed, level) {
-    var i;
-    games = [];
-    games.push(new Game(10, 16, speed || 8, level || 10, 0));
-    games.push(new Game(10, 16, speed || 8, level || 10, 1));
-    copy_game_state(games[0], games[1]);
-    init_blocks();
-}
-function single_init(speed, level) {
-    var i;
-    games = [];
-    games.push(new Game(10, 16, speed || 8, level || 10, 0));
-    init_blocks();
-}
-function single_with_bot_init(speed, level) {
-    if (typeof speed === "undefined") { speed = 8; }
-    if (typeof level === "undefined") { level = 10; }
-    games = [];
-    var bot = new Bot(better_algo);
-    var botgame = new BotGame(10, 16, speed, level, 0, bot);
-    games.push(botgame);
-    games.push(new Game(10, 16, speed, level, 1));
-    copy_game_state(games[0].game, games[1]);
-    init_blocks();
-}
-function single_bot_init(speed, level) {
-    if (typeof speed === "undefined") { speed = 8; }
-    if (typeof level === "undefined") { level = 10; }
-    games = [];
-    var bot = new Bot(better_algo);
-    games.push(new BotGame(10, 16, speed, level, 0, bot));
-    init_blocks();
-}
-function init_blocks() {
-    for(var i = 0; i < 10000; i++) {
-        blocks.push(1 + Math.floor(Math.random() * COLORS));
-    }
-}
+    };
+    MainGame.prototype.display_text = function (game, text) {
+        var i;
+        if(game === 'all') {
+            for(i = 0; i < games.length; i++) {
+                games[i].add_message(text);
+            }
+        } else {
+            games[game].add_message(text);
+        }
+    };
+    MainGame.prototype.pause = function () {
+        if(interval) {
+            this.stop();
+            this.display_text('all', 'GAME PAUSED');
+            this.draw();
+            interval = undefined;
+        } else {
+            this.start();
+        }
+    };
+    MainGame.prototype.copy_game_state = function (game_from, game_to) {
+        game_to.state = copy(game_from.state);
+        game_to.initial = copy(game_from.initial);
+        game_to.virus = game_from.virus;
+        1;
+    };
+    MainGame.prototype.two_p_init = function (speed, level) {
+        var i;
+        games = [];
+        games.push(new Game(10, 16, speed || 8, level || 10, 0));
+        games.push(new Game(10, 16, speed || 8, level || 10, 1));
+        this.copy_game_state(games[0], games[1]);
+        this.init_blocks();
+    };
+    MainGame.prototype.single_init = function (speed, level) {
+        var i;
+        games = [];
+        games.push(new Game(10, 16, speed || 8, level || 10, 0));
+        this.init_blocks();
+    };
+    MainGame.prototype.single_with_bot_init = function (speed, level) {
+        if (typeof speed === "undefined") { speed = 8; }
+        if (typeof level === "undefined") { level = 10; }
+        games = [];
+        var bot = new Bot(better_algo);
+        var botgame = new BotGame(10, 16, speed, level, 0, bot);
+        games.push(botgame);
+        games.push(new Game(10, 16, speed, level, 1));
+        this.copy_game_state(games[0].game, games[1]);
+        this.init_blocks();
+    };
+    MainGame.prototype.single_bot_init = function (speed, level) {
+        if (typeof speed === "undefined") { speed = 8; }
+        if (typeof level === "undefined") { level = 10; }
+        games = [];
+        var bot = new Bot(better_algo);
+        games.push(new BotGame(10, 16, speed, level, 0, bot));
+        this.init_blocks();
+    };
+    MainGame.prototype.init_blocks = function () {
+        for(var i = 0; i < 10000; i++) {
+            blocks.push(1 + Math.floor(Math.random() * COLORS));
+        }
+    };
+    return MainGame;
+})();
 var Bot = (function () {
     function Bot(algo, botspeed) {
         if (typeof botspeed === "undefined") { botspeed = 5; }
@@ -1173,7 +1182,5 @@ function set_drop_state(goalx, current_state, colors, orientation) {
         }
     }
 }
-init = single_init;
-init = single_with_bot_init;
-init = single_bot_init;
-init(1);
+var app = new MainGame();
+app.single_bot_init(5);

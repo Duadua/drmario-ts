@@ -345,13 +345,16 @@ class Game
 				this.new_movable();
 			}
 		}
-		if ( this.dead ){
-			this.game_over();
+		if ( this.dead ) {
+			return 'gameover';
+//			this.game_over();
 		}
 		if ( this.virus == 0 ){
-			this.victory();
+			return 'victory';
+//			this.victory();
 		}
 		this.ticks += 1;
+		return '';
 	}
 
 	public next_punish()
@@ -588,31 +591,6 @@ class Game
 	}
 
 
-	public game_over()
-	{
-		var i = this.index, 
-		other = (i + 1) % 2;
-		stop();
-		display_text(i, 'You lose');
-		if (games.length > 1){
-			display_text(other, 'You win');
-			wins[other] += 1;
-		}
-		init();
-	}
-
-	public victory()
-	{
-		var i = this.index, 
-		other = (i + 1) % 2;
-		stop();
-		display_text(i, 'You win');
-		if (games.length > 1){
-			display_text(other, 'You lose');
-		}
-		wins[i] += 1;
-		init();
-	}
 
 	public get_punish(colors_list)
 	{
@@ -671,107 +649,173 @@ class BotGame extends Game
 
 	public tick()
 	{
-		super.tick();
+		var result = super.tick();
 		this.bot.tick();
+		return result;
 	}
 }
 
 
+class MainGame
+{
+	public games = [];
 
+	constructor()
+	{
+		this.runframe = <any>this.runframe.bind(this);
+	}
 
-
-
-function draw(){
-	ctx.clearRect(0,0,500,600);
-	ctx.fillStyle = '#ffffff';
-	ctx.fillRect(0,0,500,600);
-	games.forEach(function(game,index){
-		ctx.save();
-		ctx.translate(30 + index * 240, 30);
-		game.tick();
-		game.view.draw();
-		ctx.restore();
-	});
-}
-
-function start(){
-	interval = setInterval(draw,1000/FPS);
-}
-
-function stop(){
-	clearInterval(interval);
-	interval = undefined;
-}
-
-function display_text(game, text){
-	var i;
-	if (game === 'all'){
-		for (i = 0 ; i < games.length; i++){
-			games[i].add_message(text);
+	public runframe()
+	{
+		var result;
+		// Calculate state
+		for (var index=0; index<games.length; index++) {
+			var game = games[index];
+//		games.forEach(function(game,index){
+			result = game.tick();
+			if (result=='gameover') {
+				this.victory((index+1)%2);
+			} else if (result=='victory') {
+				this.victory(index);
+			}
 		}
-	} else {
-		games[game].add_message(text);
+		this.draw();
 	}
-}
 
-function pause(){
-	if (interval){
+	public draw()
+	{
+		ctx.clearRect(0,0,500,600);
+		ctx.fillStyle = '#ffffff';
+		ctx.fillRect(0,0,500,600);
+		// Draw results
+		games.forEach(function(game,index){
+			ctx.save();
+			ctx.translate(30 + index * 240, 30);
+			game.view.draw();
+			ctx.restore();
+		});		
+	}
+
+/*	public game_over()
+	{
+		var i = this.index, 
+		other = (i + 1) % 2;
 		stop();
-		display_text('all', 'GAME PAUSED');
-		draw();
-		interval = undefined;
-	} else {
-		start();
+		display_text(i, 'You lose');
+		if (games.length > 1){
+			display_text(other, 'You win');
+			wins[other] += 1;
+		}
+		init();
 	}
+*/
+	public victory(winner: number)
+	{
+		var loser = (winner + 1) % 2;
+		this.stop();
+		this.display_text(winner, 'You win');
+		if (this.games.length > 1){
+			this.display_text(loser, 'You lose');
+		}
+		wins[winner] += 1;
+		this.init();
+	}
+
+	public init;
+
+	public start()
+	{
+		interval = setInterval(this.runframe,1000/FPS);
+	}
+
+	public stop()
+	{
+		clearInterval(interval);
+		interval = undefined;
+	}
+
+	public display_text(game, text)
+	{
+		var i;
+		if (game === 'all'){
+			for (i = 0 ; i < games.length; i++){
+				games[i].add_message(text);
+			}
+		} else {
+			games[game].add_message(text);
+		}
+	}
+
+	public pause()
+	{
+		if (interval){
+			this.stop();
+			this.display_text('all', 'GAME PAUSED');
+			this.draw();
+			interval = undefined;
+		} else {
+			this.start();
+		}
+	}
+
+
+	public copy_game_state(game_from, game_to)
+	{
+		game_to.state = copy(game_from.state);
+		game_to.initial = copy(game_from.initial);
+		game_to.virus = game_from.virus; + 1 
+	}
+
+	public two_p_init(speed, level)
+	{
+		var i;
+		games = [];
+		games.push(new Game(10, 16, speed || 8, level || 10, 0));
+		games.push(new Game(10, 16, speed || 8, level || 10, 1));
+		this.copy_game_state(games[0],games[1]);
+		this.init_blocks();
+	}
+
+
+	public single_init(speed, level)
+	{
+		var i;
+		games = [];
+		games.push(new Game(10, 16, speed || 8, level || 10, 0));
+		this.init_blocks();
+	}
+
+	public single_with_bot_init(speed=8, level=10)
+	{
+		games = <any[]>[];
+		var bot = new Bot(better_algo);
+		var botgame = new BotGame(10, 16, speed, level, 0, bot);
+		games.push(botgame);
+		games.push(new Game(10, 16, speed, level, 1));
+		this.copy_game_state(games[0].game, games[1]);
+		this.init_blocks();
+	}
+
+	public single_bot_init(speed=8, level=10)
+	{
+		games = [];
+		var bot = new Bot(better_algo);
+		games.push(new BotGame(10, 16, speed, level, 0, bot));
+		this.init_blocks();
+	}
+
+
+	public init_blocks()
+	{
+		for (var i = 0; i < 10000; i++){
+			blocks.push(1 + Math.floor(Math.random()*COLORS));
+		} 
+	}
+
 }
 
 
-function copy_game_state(game_from, game_to){
-	game_to.state = copy(game_from.state);
-	game_to.initial = copy(game_from.initial);
-	game_to.virus = game_from.virus; + 1 
-}
 
-function two_p_init(speed, level){
-	var i;
-	games = [];
-	games.push(new Game(10, 16, speed || 8, level || 10, 0));
-	games.push(new Game(10, 16, speed || 8, level || 10, 1));
-	copy_game_state(games[0],games[1]);
-	init_blocks();
-}
-
-
-function single_init(speed, level){
-	var i;
-	games = [];
-	games.push(new Game(10, 16, speed || 8, level || 10, 0));
-	init_blocks();
-}
-
-function single_with_bot_init(speed=8, level=10){
-	games = <any[]>[];
-	var bot = new Bot(better_algo);
-	var botgame = new BotGame(10, 16, speed, level, 0, bot);
-	games.push(botgame);
-	games.push(new Game(10, 16, speed, level, 1));
-	copy_game_state(games[0].game, games[1]);
-	init_blocks();
-}
-
-function single_bot_init(speed=8, level=10){
-	games = [];
-	var bot = new Bot(better_algo);
-	games.push(new BotGame(10, 16, speed, level, 0, bot));
-	init_blocks();
-}
-
-
-function init_blocks(){
-	for (var i = 0; i < 10000; i++){
-		blocks.push(1 + Math.floor(Math.random()*COLORS));
-	} 
-}
 
 // AI code
 class Bot
@@ -1052,9 +1096,9 @@ window.addEventListener('keypress', function (e) {
 */
 
 
+var app = new MainGame();
 
 
-init = single_init;
-init = single_with_bot_init;
-init = single_bot_init;
-init(1);
+//init = app.single_bot_init;
+//init(5);
+app.single_bot_init(2);
