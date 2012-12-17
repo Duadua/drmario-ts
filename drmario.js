@@ -6,7 +6,6 @@ var __extends = this.__extends || function (d, b) {
 var canvas = document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
 var FPS = 24;
-var games = [];
 var colors = [
     '#000000', 
     '#dfb700', 
@@ -295,6 +294,7 @@ var Game = (function () {
         this.lines_in_this_move = [];
         this.messages = [];
         this.virus = 0;
+        this.level = 10;
         this.dead = false;
         this.index = index;
         this.x = x;
@@ -304,7 +304,16 @@ var Game = (function () {
         this.view = new CanvasView(ctx, this);
         this.tx = x;
         this.ty = y;
+        this.level = level;
     }
+    Game.prototype.clone = function () {
+        var newGame = new Game(this.x, this.y, this.speed, this.level);
+        newGame.state = copy(this.state);
+        newGame.initial = copy(this.initial);
+        newGame.virus = this.virus;
+        1;
+        return newGame;
+    };
     Game.prototype.init_state = function (level) {
         var i;
         var j;
@@ -396,7 +405,6 @@ var Game = (function () {
                 this.next_punish();
             } else {
                 if(this.lines_in_this_move.length > 1) {
-                    this.set_punish(this.lines_in_this_move);
                 }
                 this.new_movable();
             }
@@ -722,16 +730,6 @@ var Game = (function () {
         this.punish_list.push(colors_list);
     };
     Game.prototype.set_punish = function (colors_list) {
-        var i;
-        if(games.length === 1) {
-            return;
-        }
-        if(this.index === undefined) {
-            this.index = games.indexOf(this);
-        }
-        i = this.index;
-        var game_to = games[(i + 1) % 2];
-        game_to.get_punish(colors_list);
     };
     Game.prototype.onetrue = function (l) {
         var i = 0;
@@ -805,8 +803,8 @@ var MainGame = (function () {
     }
     MainGame.prototype.runframe = function () {
         var result;
-        for(var index = 0; index < games.length; index++) {
-            var game = games[index];
+        for(var index = 0; index < this.games.length; index++) {
+            var game = this.games[index];
             result = game.tick();
             if(result == 'gameover') {
                 this.victory((index + 1) % 2);
@@ -822,7 +820,7 @@ var MainGame = (function () {
         ctx.clearRect(0, 0, 500, 600);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, 500, 600);
-        games.forEach(function (game, index) {
+        this.games.forEach(function (game, index) {
             ctx.save();
             ctx.translate(30 + index * 240, 30);
             game.view.draw();
@@ -849,11 +847,11 @@ var MainGame = (function () {
     MainGame.prototype.display_text = function (game, text) {
         var i;
         if(game === 'all') {
-            for(i = 0; i < games.length; i++) {
-                games[i].add_message(text);
+            for(i = 0; i < this.games.length; i++) {
+                this.games[i].add_message(text);
             }
         } else {
-            games[game].add_message(text);
+            this.games[game].add_message(text);
         }
     };
     MainGame.prototype.pause = function () {
@@ -874,35 +872,38 @@ var MainGame = (function () {
     };
     MainGame.prototype.two_p_init = function (speed, level) {
         var i;
-        games = [];
-        games.push(new Game(10, 16, speed || 8, level || 10, 0));
-        games.push(new Game(10, 16, speed || 8, level || 10, 1));
-        this.copy_game_state(games[0], games[1]);
+        var g1 = new Game(10, 16, speed || 8, level || 10, 0);
+        this.games = [
+            g1, 
+            g1.clone()
+        ];
         this.init_blocks();
     };
     MainGame.prototype.single_init = function (speed, level) {
         var i;
-        games = [];
-        games.push(new Game(10, 16, speed || 8, level || 10, 0));
+        this.games = [
+            new Game(10, 16, speed || 8, level || 10, 0)
+        ];
         this.init_blocks();
     };
     MainGame.prototype.single_with_bot_init = function (speed, level) {
         if (typeof speed === "undefined") { speed = 8; }
         if (typeof level === "undefined") { level = 10; }
-        games = [];
         var bot = new Bot(better_algo);
         var botgame = new BotGame(10, 16, speed, level, 0, bot);
-        games.push(botgame);
-        games.push(new Game(10, 16, speed, level, 1));
-        this.copy_game_state(games[0].game, games[1]);
+        this.games = [
+            botgame, 
+            botgame.clone()
+        ];
         this.init_blocks();
     };
     MainGame.prototype.single_bot_init = function (speed, level) {
         if (typeof speed === "undefined") { speed = 8; }
         if (typeof level === "undefined") { level = 10; }
-        games = [];
         var bot = new Bot(better_algo);
-        games.push(new BotGame(10, 16, speed, level, 0, bot));
+        this.games = [
+            new BotGame(10, 16, speed, level, 0, bot)
+        ];
         this.init_blocks();
     };
     MainGame.prototype.init_blocks = function () {
@@ -1184,3 +1185,4 @@ function set_drop_state(goalx, current_state, colors, orientation) {
 }
 var app = new MainGame();
 app.single_bot_init(5);
+app.start();

@@ -8,7 +8,7 @@
 var canvas = <HTMLCanvasElement>document.getElementById('canvas'),
 ctx = canvas.getContext('2d'), 
 FPS = 24,
-games = [],
+//games = [],
 colors = ['#000000','#dfb700','#0000fc','#cc0000'],
 interval,
 init,
@@ -229,6 +229,7 @@ class Game
 	public lines_in_this_move= [];
 	public messages = [];
 	public virus = 0;
+	public level = 10;
 
 	private view;
 	public movable;
@@ -246,8 +247,17 @@ class Game
 		this.view = new CanvasView(ctx, this);
 		this.tx = x;
 		this.ty = y;
+		this.level = level;
 	}
 
+	public clone():Game
+	{
+		var newGame = new Game(this.x, this.y, this.speed, this.level);
+		newGame.state = copy(this.state);
+		newGame.initial = copy(this.initial);
+		newGame.virus = this.virus; + 1 
+		return newGame;
+	}
 
 	public init_state(level)
 	{
@@ -340,7 +350,7 @@ class Game
 				this.next_punish();
 			} else {
 				if (this.lines_in_this_move.length > 1){
-					this.set_punish(this.lines_in_this_move); 
+//					this.set_punish(this.lines_in_this_move); 
 				}
 				this.new_movable();
 			}
@@ -599,6 +609,7 @@ class Game
 
 	public set_punish(colors_list)
 	{
+		/*
 		var i; 
 		if (games.length === 1){
 			return;
@@ -610,6 +621,7 @@ class Game
 		i = this.index;
 		var game_to = games[(i+1)%2];
 		game_to.get_punish(colors_list);
+		*/
 	}
 
 
@@ -669,8 +681,8 @@ class MainGame
 	{
 		var result;
 		// Calculate state
-		for (var index=0; index<games.length; index++) {
-			var game = games[index];
+		for (var index=0; index<this.games.length; index++) {
+			var game = this.games[index];
 //		games.forEach(function(game,index){
 			result = game.tick();
 			if (result=='gameover') {
@@ -688,7 +700,7 @@ class MainGame
 		ctx.fillStyle = '#ffffff';
 		ctx.fillRect(0,0,500,600);
 		// Draw results
-		games.forEach(function(game,index){
+		this.games.forEach(function(game,index){
 			ctx.save();
 			ctx.translate(30 + index * 240, 30);
 			game.view.draw();
@@ -725,7 +737,8 @@ class MainGame
 
 	public start()
 	{
-		interval = setInterval(this.runframe,1000/FPS);
+//		interval = setInterval(() => { this.runframe; },1000/FPS);
+		interval = setInterval(this.runframe, 1000/FPS);
 	}
 
 	public stop()
@@ -738,11 +751,11 @@ class MainGame
 	{
 		var i;
 		if (game === 'all'){
-			for (i = 0 ; i < games.length; i++){
-				games[i].add_message(text);
+			for (i = 0 ; i < this.games.length; i++){
+				this.games[i].add_message(text);
 			}
 		} else {
-			games[game].add_message(text);
+			this.games[game].add_message(text);
 		}
 	}
 
@@ -769,10 +782,12 @@ class MainGame
 	public two_p_init(speed, level)
 	{
 		var i;
-		games = [];
-		games.push(new Game(10, 16, speed || 8, level || 10, 0));
-		games.push(new Game(10, 16, speed || 8, level || 10, 1));
-		this.copy_game_state(games[0],games[1]);
+		var g1 = new Game(10, 16, speed || 8, level || 10, 0);
+		this.games = [
+			g1,
+			g1.clone()
+		];
+//		this.copy_game_state(games[0],games[1]);
 		this.init_blocks();
 	}
 
@@ -780,27 +795,29 @@ class MainGame
 	public single_init(speed, level)
 	{
 		var i;
-		games = [];
-		games.push(new Game(10, 16, speed || 8, level || 10, 0));
+		this.games = [
+			new Game(10, 16, speed || 8, level || 10, 0)
+		];
 		this.init_blocks();
 	}
 
 	public single_with_bot_init(speed=8, level=10)
 	{
-		games = <any[]>[];
 		var bot = new Bot(better_algo);
 		var botgame = new BotGame(10, 16, speed, level, 0, bot);
-		games.push(botgame);
-		games.push(new Game(10, 16, speed, level, 1));
-		this.copy_game_state(games[0].game, games[1]);
+		this.games = [
+			botgame,
+			botgame.clone()
+		];
 		this.init_blocks();
 	}
 
 	public single_bot_init(speed=8, level=10)
 	{
-		games = [];
 		var bot = new Bot(better_algo);
-		games.push(new BotGame(10, 16, speed, level, 0, bot));
+		this.games = [
+			new BotGame(10, 16, speed, level, 0, bot)
+		];
 		this.init_blocks();
 	}
 
@@ -1101,4 +1118,5 @@ var app = new MainGame();
 
 //init = app.single_bot_init;
 //init(5);
-app.single_bot_init(2);
+app.single_bot_init(5);
+app.start();
